@@ -42,8 +42,6 @@ module FasterS3Url
     def presigned_url(key, now: Time.now, expires_in: DEFAULT_EXPIRES_IN)
       validate_expires_in(expires_in)
 
-      signed_headers = "host"
-
       canonical_uri = "/" + uri_escape_key(key)
 
       now = now.utc
@@ -57,7 +55,7 @@ module FasterS3Url
           "X-Amz-Credential=" + uri_escape(@access_key_id + "/" + credential_scope),
           "X-Amz-Date=" + amz_date,
           "X-Amz-Expires=" + expires_in.to_s,
-          "X-Amz-SignedHeaders=" + signed_headers,
+          "X-Amz-SignedHeaders=" + SIGNED_HEADERS,
         ]
       canonical_query_string = canonical_query_string_parts.sort.join("&")
 
@@ -67,7 +65,7 @@ module FasterS3Url
         canonical_uri + "\n" +
         canonical_query_string + "\n" +
         canonical_headers + "\n" +
-        signed_headers + "\n" +
+        SIGNED_HEADERS + "\n" +
         'UNSIGNED-PAYLOAD'
 
       string_to_sign =
