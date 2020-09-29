@@ -87,21 +87,29 @@ module FasterS3Url
 
     private
 
-    TO_ESCAPE_WITH_SLASH = /([^a-zA-Z0-9_.\-\~\/]+)/
+    TO_ESCAPE_LEAVE_SLASH    = /([^a-zA-Z0-9_.\-\~\/]+)/
+    TO_ESCAPE_ALSO_SLASH = /([^a-zA-Z0-9_.\-\~]+)/
 
     # Based on CGI.escape source, but changed to match what original S3 public_url
     # code actually needs, but does with inefficient extra gsubs:
-    #  * don't escape '/', leave it alone
+    #  * IF escape_slash:true, don't escape '/', leave it alone (used for escaping S3 keys)
     #  * don't escape '~', leave it alone
     #  * escape ' ' to '%2F', not '+;'
     #
     # Code in aws-sdk does this by using CGI.escape and adding 2-3 additional gsub passes
     # on top, much more efficient to do what we need in one go.
-    def uri_escape_key(string)
+    def uri_escape(string, escape_slash: true)
+      regexp = escape_slash ? TO_ESCAPE_ALSO_SLASH : TO_ESCAPE_LEAVE_SLASH
+
       encoding = string.encoding
-      string.b.gsub(TO_ESCAPE_WITH_SLASH) do |m|
+
+      string.b.gsub(regexp) do |m|
         '%' + m.unpack('H2' * m.bytesize).join('%').upcase
       end.force_encoding(encoding)
+    end
+
+    def uri_escape_key(s3_object_key)
+      uri_escape(s3_object_key, escape_slash: false)
     end
 
     def default_host(bucket_name)
