@@ -39,12 +39,12 @@ module FasterS3Url
       "https://#{self.host}/#{uri_escape_key(key)}"
     end
 
-    def presigned_url(key, now: Time.now, expires_in: DEFAULT_EXPIRES_IN)
+    def presigned_url(key, now: nil, expires_in: DEFAULT_EXPIRES_IN)
       validate_expires_in(expires_in)
 
       canonical_uri = "/" + uri_escape_key(key)
 
-      now = now.utc
+      now = now ? now.dup.utc : Time.now.utc # Uh Time#utc is mutating, not nice to do to an argument!
       amz_date  = now.strftime("%Y%m%dT%H%M%SZ")
       datestamp = now.strftime("%Y%m%d")
 
