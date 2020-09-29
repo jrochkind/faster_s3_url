@@ -94,14 +94,7 @@ RSpec.describe FasterS3Url do
     describe "with custom now" do
       let(:custom_now) { Date.today.prev_day.to_time }
       it "produces same as aws-sdk at that time" do
-        ours = builder.presigned_url(object_key, now: custom_now)
-
-        Timecop.freeze(custom_now)
-        theirs = aws_bucket.object(object_key).presigned_url(:get)
-
-        expect(ours).to eq(theirs)
-      ensure
-        Timecop.return
+        expect(builder.presigned_url(object_key, now: custom_now)).to eq(aws_bucket.object(object_key).presigned_url(:get, time: custom_now))
       end
     end
   end
