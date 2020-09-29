@@ -14,11 +14,6 @@ module FasterS3Url
     ALGORITHM = "AWS4-HMAC-SHA256".freeze
     SERVICE = "s3".freeze
 
-    QUERY_STRING_TEMPLATE = [
-      "X-Amz-Algorithm=#{ALGORITHM}",
-      "X-Amz-SignedHeaders=#{SIGNED_HEADERS}"
-    ]
-
     DEFAULT_EXPIRES_IN = 900 # 15 minutes, seems to be AWS SDK default
 
     attr_reader :bucket_name, :region, :host, :access_key_id
@@ -53,7 +48,7 @@ module FasterS3Url
       amz_date  = now.strftime("%Y%m%dT%H%M%SZ")
       datestamp = now.strftime("%Y%m%d")
 
-      credential_scope = datestamp + '/' + region + '/' + 's3' + '/' + 'aws4_request'
+      credential_scope = datestamp + '/' + region + '/' + SERVICE + '/' + 'aws4_request'
 
       canonical_query_string_parts = [
           "X-Amz-Algorithm=#{ALGORITHM}",
@@ -79,7 +74,7 @@ module FasterS3Url
         credential_scope + "\n" +
         Digest::SHA256.hexdigest(canonical_request)
 
-      signing_key = aws_get_signature_key(@secret_access_key, datestamp, region, "s3")
+      signing_key = aws_get_signature_key(@secret_access_key, datestamp, region, SERVICE)
       signature = OpenSSL::HMAC.hexdigest("SHA256", signing_key, string_to_sign)
 
       return "https://" + self.host + canonical_uri + "?" + canonical_query_string + "&X-Amz-Signature=" + signature
