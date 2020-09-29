@@ -53,7 +53,7 @@ RSpec.describe FasterS3Url do
       end
 
       describe "other escapable" do
-        let(:object_key) { "dir/dir/parens()brackets[]punct';:\".jpg" }
+        let(:object_key) { "dir/dir/parens()=brackets[]punct';:\".jpg" }
         it "is correct" do
           expect(builder.public_url(object_key)).to eq(aws_bucket.object(object_key).public_url)
         end
@@ -99,6 +99,76 @@ RSpec.describe FasterS3Url do
           expect {
             builder.presigned_url(object_key, expires_in: 0)
           }.to raise_error(ArgumentError)
+        end
+      end
+
+      describe "custom S3 response_* headers" do
+
+        # Aws-sdk for some reason does NOT sort query params canonically in actual
+        # query, even though they have to be sorted canonically for signature.
+        # We don't need to match it exactly if it has the SAME query params
+        # INCLUDING same signature, which this tests
+        def expect_equiv_uri(uri_str1, uri_str2)
+          uri1 = URI.parse(uri_str1)
+          uri2 = URI.parse(uri_str2)
+
+          expect(uri1.scheme).to eq(uri2.scheme)
+          expect(uri1.host).to eq(uri2.host)
+          expect(uri1.path).to eq(uri2.path)
+
+          expect(CGI.parse(uri1.query)).to eq(CGI.parse(uri1.query))
+        end
+
+        it "constructs equivalent custom response_cache_control" do
+          expect_equiv_uri(
+            builder.presigned_url(object_key, response_cache_control: "Private"),
+            aws_bucket.object(object_key).presigned_url(:get, response_cache_control: "Private")
+          )
+        end
+
+        it "constructs equivalent custom response_content_disposition" do
+          content_disp =  "attachment; filename=\"foo bar.baz\"; filename*=UTF-8''foo%20bar.baz"
+          expect_equiv_uri(
+            builder.presigned_url(object_key, response_content_disposition: content_disp),
+            aws_bucket.object(object_key).presigned_url(:get, response_content_disposition: content_disp)
+          )
+        end
+
+        it "constructs equivalent custom response_content_language" do
+          expect_equiv_uri(
+            builder.presigned_url(object_key, response_content_language: "de-DE, en-CA"),
+            aws_bucket.object(object_key).presigned_url(:get, response_content_language: "de-DE, en-CA")
+          )
+        end
+
+        it "constructs equivalent custom response_content_language" do
+          expect_equiv_uri(
+            builder.presigned_url(object_key, response_content_type: "text/html; charset=UTF-8"),
+            aws_bucket.object(object_key).presigned_url(:get, response_content_type: "text/html; charset=UTF-8")
+          )
+        end
+
+        it "constructs equivalent custom response_content_encoding" do
+          expect_equiv_uri(
+            builder.presigned_url(object_key, response_content_encoding: "deflate, gzip"),
+            aws_bucket.object(object_key).presigned_url(:get, response_content_encoding: "deflate, gzip")
+          )
+        end
+
+        it "constructs equivalent custom response_expires" do
+          expect_equiv_uri(
+            builder.presigned_url(object_key, response_expires: "Wed, 21 Oct 2015 07:28:00 GMT"),
+            aws_bucket.object(object_key).presigned_url(:get, response_expires: "Wed, 21 Oct 2015 07:28:00 GMT")
+          )
+        end
+
+        it "constructs equivalent custom version_id" do
+          version_id = "BspIL8pXg_52rGXELmqZ7cgmn7u4XJgS"
+
+          expect_equiv_uri(
+            builder.presigned_url(object_key, version_id: version_id),
+            aws_bucket.object(object_key).presigned_url(:get, version_id: version_id)
+          )
         end
       end
     end

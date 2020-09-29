@@ -39,7 +39,14 @@ module FasterS3Url
       "https://#{self.host}/#{uri_escape_key(key)}"
     end
 
-    def presigned_url(key, now: nil, expires_in: DEFAULT_EXPIRES_IN)
+    def presigned_url(key, now: nil, expires_in: DEFAULT_EXPIRES_IN,
+                        response_cache_control: nil,
+                        response_content_disposition: nil,
+                        response_content_encoding: nil,
+                        response_content_language: nil,
+                        response_content_type: nil,
+                        response_expires: nil,
+                        version_id: nil)
       validate_expires_in(expires_in)
 
       canonical_uri = "/" + uri_escape_key(key)
@@ -57,7 +64,23 @@ module FasterS3Url
           "X-Amz-Expires=" + expires_in.to_s,
           "X-Amz-SignedHeaders=" + SIGNED_HEADERS,
         ]
-      canonical_query_string = canonical_query_string_parts.sort.join("&")
+
+      extra_params = {
+        :"response-cache-control" => response_cache_control,
+        :"response-content-disposition" => response_content_disposition,
+        :"response-content-encoding" => response_content_encoding,
+        :"response-content-language" => response_content_language,
+        :"response-content-type" => response_content_type,
+        :"response-expires" => response_expires,
+        :"versionId" => version_id
+      }.compact
+
+      if extra_params.size > 0
+        extra_param_parts = extra_params.collect {|k, v| "#{k}=#{uri_escape v}" }.join("&")
+        (canonical_query_string_parts << extra_param_parts).sort!
+      end
+
+      canonical_query_string = canonical_query_string_parts.join("&")
 
       canonical_headers = "host:" + host + "\n"
 
