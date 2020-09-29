@@ -39,7 +39,35 @@ module FasterS3Url
       "https://#{self.host}/#{uri_escape_key(key)}"
     end
 
-    def presigned_url(key, now: nil, expires_in: DEFAULT_EXPIRES_IN,
+
+    # Generates a presigned GET URL for a specified S3 object key.
+    #
+    # @param [String] key The S3 key to create a URL pointing to.
+    #
+    # @option params [Time] :time (Time.now) The starting time for when the
+    #   presigned url becomes active.
+    #
+    # @option params [String] :response_cache_control
+    #   Adds a `response-cache-control` query param to set the `Cache-Control` header of the subsequent response from S3.
+    #
+    # @option params [String] :response_content_disposition
+    #   Adds a `response-content-disposition` query param to set the `Content-Disposition` header of the subsequent response from S3
+    #
+    # @option params [String] :response_content_encoding
+    #   Adds a `response-content-encoding` query param to set `Content-Encoding` header of the subsequent response from S3
+    #
+    # @option params [String] :response_content_language
+    #   Adds a `response-content-language` query param to sets the `Content-Language` header of the subsequent response from S3
+    #
+    # @option params [String] :response_content_type
+    #   Adds a `response-content-type` query param to sets the `Content-Type` header of the subsequent response from S3
+    #
+    # @option params [String] :response_expires
+    #   Adds a `response-expires` query param to sets the `Expires` header of of the subsequent response from S3
+    #
+    # @option params [String] :version_id
+    #   Adds a `versionId` query param to reference a specific version of the object from S3.
+    def presigned_url(key, time: nil, expires_in: DEFAULT_EXPIRES_IN,
                         response_cache_control: nil,
                         response_content_disposition: nil,
                         response_content_encoding: nil,
@@ -51,7 +79,7 @@ module FasterS3Url
 
       canonical_uri = "/" + uri_escape_key(key)
 
-      now = now ? now.dup.utc : Time.now.utc # Uh Time#utc is mutating, not nice to do to an argument!
+      now = time ? time.dup.utc : Time.now.utc # Uh Time#utc is mutating, not nice to do to an argument!
       amz_date  = now.strftime("%Y%m%dT%H%M%SZ")
       datestamp = now.strftime("%Y%m%d")
 
