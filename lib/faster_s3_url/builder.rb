@@ -14,7 +14,7 @@ module FasterS3Url
     ALGORITHM = "AWS4-HMAC-SHA256".freeze
     SERVICE = "s3".freeze
 
-    DEFAULT_EXPIRES_IN = 900 # 15 minutes, seems to be AWS SDK default
+    DEFAULT_EXPIRES_IN = FIFTEEN_MINUTES # 15 minutes, seems to be AWS SDK default
 
     attr_reader :bucket_name, :region, :host, :access_key_id
 
@@ -40,6 +40,8 @@ module FasterS3Url
     end
 
     def presigned_url(key, now: Time.now, expires_in: DEFAULT_EXPIRES_IN)
+      validate_expires_in(expires_in)
+
       signed_headers = "host"
 
       canonical_uri = "/" + uri_escape_key(key)
@@ -129,5 +131,12 @@ module FasterS3Url
       OpenSSL::HMAC.digest("SHA256", key, data)
     end
 
+    def validate_expires_in(expires_in)
+      if expires_in > ONE_WEEK
+        raise ArgumentError.new("expires_in value of #{expires_in} exceeds one-week maximum.")
+      elsif expires_in <= 0
+        raise ArgumentError.new("expires_in value of #{expires_in} cannot be 0 or less.")
+      end
+    end
   end
 end

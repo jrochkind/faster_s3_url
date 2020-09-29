@@ -88,6 +88,18 @@ RSpec.describe FasterS3Url do
         it "produces saem as aws-sdk" do
           expect(builder.presigned_url(object_key, expires_in: expires_in)).to eq(aws_bucket.object(object_key).presigned_url(:get, expires_in: expires_in))
         end
+
+        it "raises for too high" do
+          expect {
+            builder.presigned_url(object_key, expires_in: FasterS3Url::Builder::ONE_WEEK + 1)
+          }.to raise_error(ArgumentError)
+        end
+
+        it "raises for too low" do
+          expect {
+            builder.presigned_url(object_key, expires_in: 0)
+          }.to raise_error(ArgumentError)
+        end
       end
     end
 
