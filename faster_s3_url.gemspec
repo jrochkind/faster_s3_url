@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.authors       = ["Jonathan Rochkind"]
   spec.email         = ["jrochkind@sciencehistory.org"]
 
-  spec.summary       = %q{Generate public and presigned S3 GET URLs faster}
+  spec.summary       = %q{Generate public and presigned AWS S3 GET URLs faster}
   spec.homepage      = "https://github.com/jrochkind/faster_s3_url"
   spec.license       = "MIT"
   spec.required_ruby_version = Gem::Requirement.new(">= 2.3.0")
