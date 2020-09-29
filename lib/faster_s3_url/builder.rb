@@ -14,20 +14,22 @@ module FasterS3Url
     ALGORITHM = "AWS4-HMAC-SHA256".freeze
     SERVICE = "s3".freeze
 
-    EMPTY_STRING_HASHED = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".freeze
-
     QUERY_STRING_TEMPLATE = [
       "X-Amz-Algorithm=#{ALGORITHM}",
       "X-Amz-SignedHeaders=#{SIGNED_HEADERS}"
     ]
 
-    attr_reader :bucket_name, :region, :host
+    DEFAULT_EXPIRES_IN = 900 # 15 minutes, seems to be AWS SDK default
 
-    def initialize(bucket_name:, region:, host:nil, default_public: true)
+    attr_reader :bucket_name, :region, :host, :access_key_id
+
+    def initialize(bucket_name:, region:, access_key_id:, secret_access_key:, host:nil, default_public: true)
       @bucket_name = bucket_name
       @region = region
       @host = host || default_host(bucket_name)
       @default_public = default_public
+      @access_key_id = access_key_id
+      @secret_access_key = secret_access_key
     end
 
     def url(key, public: default_public, **options)
@@ -42,8 +44,8 @@ module FasterS3Url
       "https://#{self.host}/#{uri_escape_key(key)}"
     end
 
-    def presigned_url(key, now: Time.now, **query_params)
-      signed_headers = "host;x-amz-date"
+    def presigned_url(key, now: Time.now, expires_in: DEFAULT_EXPIRES_IN)
+      signed_headers = "host"
 
       canonical_uri = "/" + uri_escape_key(key)
 
@@ -53,42 +55,40 @@ module FasterS3Url
 
       credential_scope = datestamp + '/' + region + '/' + 's3' + '/' + 'aws4_request'
 
-      canonical_query_string = [
+      canonical_query_string_parts = [
           "X-Amz-Algorithm=#{ALGORITHM}",
-          "X-Amz-Credential=" + CGI.escape(access_key + "/" + credential_scope),
+          "X-Amz-Credential=" + uri_escape(@access_key_id + "/" + credential_scope),
           "X-Amz-Date=" + amz_date,
-          "X-Amz-Expires=%d" % @expires_in,
-          # ------- When using STS we also need to add the security token
-          ("X-Amz-Security-Token=" + CGI.escape(@session_token) if @session_token),
+          "X-Amz-Expires=" + expires_in.to_s,
           "X-Amz-SignedHeaders=" + signed_headers,
         ]
+      canonical_query_string = canonical_query_string_parts.sort.join("&")
 
-      canonical_headers = "host:" + host
+      canonical_headers = "host:" + host + "\n"
 
       canonical_request = "GET\n" +
         canonical_uri + "\n" +
         canonical_query_string + "\n" +
         canonical_headers + "\n" +
         signed_headers + "\n" +
-        EMPTY_STRING_HASH
-
+        'UNSIGNED-PAYLOAD'
 
       string_to_sign =
-        ALGORITHM + '\n' +
-        amz_date + '\n' +
-        credential_scope + '\n' +
+        ALGORITHM + "\n" +
+        amz_date + "\n" +
+        credential_scope + "\n" +
         Digest::SHA256.hexdigest(canonical_request)
 
-      signing_key = aws_get_signature_key(aws_secret_key, datestamp, region, "s3")
+      signing_key = aws_get_signature_key(@secret_access_key, datestamp, region, "s3")
       signature = OpenSSL::HMAC.hexdigest("SHA256", signing_key, string_to_sign)
 
-      return "https://" + self.host + canonical_uri + "?" + "&X-Amz-Signature=" + signature
+      return "https://" + self.host + canonical_uri + "?" + canonical_query_string + "&X-Amz-Signature=" + signature
     end
 
     private
 
-    TO_ESCAPE_LEAVE_SLASH    = /([^a-zA-Z0-9_.\-\~\/]+)/
-    TO_ESCAPE_ALSO_SLASH = /([^a-zA-Z0-9_.\-\~]+)/
+    TO_ESCAPE_LEAVE_SLASH = /([^a-zA-Z0-9_.\-\~\/]+)/
+    TO_ESCAPE_ALSO_SLASH  = /([^a-zA-Z0-9_.\-\~]+)/
 
     # Based on CGI.escape source, but changed to match what original S3 public_url
     # code actually needs, but does with inefficient extra gsubs:
@@ -121,14 +121,11 @@ module FasterS3Url
       end
     end
 
-
-
-
     # `def get_signature_key` `from python example at https://docs.aws.amazon.com/general/latest/gr/sigv4-signed-request-examples.html
     def aws_get_signature_key(key, date_stamp, region_name, service_name)
       k_date = aws_sign("AWS4" + key, date_stamp)
       k_region = aws_sign(k_date, region_name)
-      k_service = hmac_bytes(k_region, service_name)
+      k_service = aws_sign(k_region, service_name)
       aws_sign(k_service, "aws4_request")
     end
 
