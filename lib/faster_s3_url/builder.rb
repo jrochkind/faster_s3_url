@@ -105,9 +105,12 @@ module FasterS3Url
         :"versionId" => version_id
       }.compact
 
+
       if extra_params.size > 0
+        # These have to be sorted, but sort is case-sensitive, and we have a fixed
+        # list of headers we know might be here... turns out they are already sorted?
         extra_param_parts = extra_params.collect {|k, v| "#{k}=#{uri_escape v}" }.join("&")
-        (canonical_query_string_parts << extra_param_parts).sort!
+        canonical_query_string_parts << extra_param_parts
       end
 
       canonical_query_string = canonical_query_string_parts.join("&")

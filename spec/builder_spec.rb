@@ -172,6 +172,21 @@ RSpec.describe FasterS3Url do
             aws_bucket.object(object_key).presigned_url(:get, version_id: version_id)
           )
         end
+
+        it "constructs equivalent with several headers" do
+          args = {
+            response_content_type: "text/html; charset=UTF-8",
+            version_id: "foo",
+            response_content_disposition: "attachment; filename=\"foo bar.baz\"; filename*=UTF-8''foo%20bar.baz",
+            response_content_language: "de-DE, en-CA",
+          }
+
+          expect_equiv_uri(
+            builder.presigned_url(object_key, **args),
+            aws_bucket.object(object_key).presigned_url(:get, **args)
+          )
+        end
+
       end
     end
 
