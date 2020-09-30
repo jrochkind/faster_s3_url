@@ -112,7 +112,7 @@ module FasterS3Url
 
       canonical_query_string = canonical_query_string_parts.join("&")
 
-      canonical_headers = "host:" + host + "\n"
+      canonical_headers = "host:#{@host}\n"
 
       canonical_request = ["GET",
         canonical_uri,
