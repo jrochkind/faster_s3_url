@@ -39,7 +39,59 @@ signer.presigned_url("my/object/key.jpg"
 )
 ```
 
+Use a CNAME or CDN or any other hostname variant other than the default this gem will come up with? Just pass in a `host` argument to initializer. Will work with both public and presigned URLs.
+
+```ruby
+signer = FasterS3Url::Builder.new(
+  bucket_name: "my-bucket.example.com",
+  host: "my-bucket.example.com",
+  region: "us-east-1",
+  access_key_id: ENV['AWS_ACCESS_KEY'],
+  secret_key_id: ENV['AWS_SECRET_KEY']
+)
+```
+
+### Shrine Storage
+
+Use [shrine](https://shrinerb.com/)?  We do and love it. This gem provides a storage that can be a drop-in replacement to [Shrine::Storage::S3](https://shrinerb.com/docs/storage/s3) (shrine 3.x required), but with faster URL generation.
+
+```ruby
+# Where you might have done:
+
+require "shrine/storage/s3"
+
+s3 = Shrine::Storage::S3.new(
+  bucket: "my-app", # required
+  region: "eu-west-1", # required
+  access_key_id: "abc",
+  secret_access_key: "xyz",
+)
+
+# instead do:
+
+require "faster_s3_url/shrine/storage"
+
+s3 = FasterS3Url::Shrine::Storage.new(
+  bucket: "my-app", # required
+  region: "eu-west-1", # required
+  access_key_id: "abc", # required
+  secret_access_key: "xyz", # required
+)
+```
+
+A couple minor differences, let me know if they disrupt you:
+* We don't support the `signer` initializer argument, not clear to me why you'd want to use this gem if you are using it.
+* We support a `host` arg in initializer, but not in #url method.
+
 ## Performance Benchmarking
+
+## Further optimizations?
+
+Further optimizations could be possible in presigned urls for the use cases supported by wt_s3_signer. We could let you turn off URI escaping if you know you don't need it? We could support a fixed current time argument in constructor, and then cache all the things that can be cached when that is fixed when that option is exersized, to be more like wt_s3_signer.
+
+If you *don't* use any additional headers, we could automatially detect that and cache what can be cached -- some things can be cached until the utc date changes, could automatically cache and watch for that.
+
+In my experimentation, it wasn't clear that there were any easy wins here, at least not without really un-DRYing the code. And this is already an order of magnitude faster than `aws-sdk-s3`, and good enough for many of my use cases. But could be considered again in future.
 
 ## Development
 
@@ -65,8 +117,7 @@ But these don't really have all info you need for generating an S3 signature. So
 
 Bug reports and pull requests are welcome on GitHub at https://github.com/jrochkind/faster_s3_url.
 
-I would love to hear from you!
-
+Is there a feature missing that you need? I may not be able to provide it, but I would love to hear from you!
 
 ## License
 

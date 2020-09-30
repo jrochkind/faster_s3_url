@@ -31,4 +31,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "benchmark-ips", "~> 2.8"
   #spec.add_development_dependency "kalibera" # for benchmark-ips :bootstrap stats option
   spec.add_development_dependency "wt_s3_signer" # just for benchmarking
+  spec.add_development_dependency "shrine", "~> 3.0" # for testing shrine storage
 end
