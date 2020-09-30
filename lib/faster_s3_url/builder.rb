@@ -18,6 +18,17 @@ module FasterS3Url
 
     attr_reader :bucket_name, :region, :host, :access_key_id
 
+    # @option params [String] :bucket_name required
+    #
+    # @option params [String] :region eg "us-east-1", required
+    #
+    # @option params[String] :host optional, host to use in generated URLs. If empty, will construct default AWS S3 host for bucket name and region.
+    #
+    # @option params [String] :access_key_id required at present, change to allow look up from environment using standard aws sdk routines?
+    #
+    # @option params [String] :secret_access_key required at present, change to allow look up from environment using standard aws sdk routines?
+    #
+    # @option params [boolean] :default_public (true) default value of `public` when instance method #url is called.
     def initialize(bucket_name:, region:, access_key_id:, secret_access_key:, host:nil, default_public: true)
       @bucket_name = bucket_name
       @region = region
@@ -27,18 +38,9 @@ module FasterS3Url
       @secret_access_key = secret_access_key
     end
 
-    def url(key, public: default_public, **options)
-      if public
-        public_url(key)
-      else
-        prepared_url(key, **options)
-      end
-    end
-
     def public_url(key)
       "https://#{self.host}/#{uri_escape_key(key)}"
     end
-
 
     # Generates a presigned GET URL for a specified S3 object key.
     #
@@ -130,6 +132,31 @@ module FasterS3Url
 
       return "https://" + self.host + canonical_uri + "?" + canonical_query_string + "&X-Amz-Signature=" + signature
     end
+
+    # just a convenience method that can call public_url or presigned_url based on flag
+    #
+    #    signer.url(object_key, public: true)
+    #      #=> forwards to signer.public_url(object_key)
+    #
+    #    signer.url(object_key, public: false, response_content_type: "image/jpeg")
+    #       #=> forwards to signer.presigned_url(object_key, response_content_type: "image/jpeg")
+    #
+    #  Options (sucn as response_content_type) that are not applicable to #public_url
+    #  are ignored in public mode.
+    #
+    #  The default value of `public` can be set by initializer arg `default_public`, which
+    #  is itself default true.
+    #
+    #      builder = FasterS3Url::Builder.new(..., default_public: false)
+    #      builder.url(object_key) # will call #presigned_url
+    def url(key, public: @default_public, **options)
+      if public
+        public_url(key)
+      else
+        presigned_url(key, **options)
+      end
+    end
+
 
     private
 

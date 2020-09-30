@@ -180,4 +180,36 @@ RSpec.describe FasterS3Url do
       end
     end
   end
+
+  describe "#url" do
+    it "by default is public" do
+      expect(builder.url(object_key)).to eq(builder.public_url(object_key))
+    end
+
+    it "can call public explicitly" do
+      expect(builder.url(object_key, public: true)).to eq(builder.public_url(object_key))
+    end
+
+    it "can call presigned explicitly" do
+      expect(builder.url(object_key, public: false, response_content_type: "image/jpeg")).to eq(builder.presigned_url(object_key, response_content_type: "image/jpeg"))
+    end
+
+    describe "with default_public set to false" do
+      let(:builder) {
+        FasterS3Url::Builder.new(bucket_name: bucket_name,
+                                  region: region,
+                                  host: host,
+                                  access_key_id: access_key_id,
+                                  secret_access_key: secret_access_key,
+                                  default_public: false)
+      }
+      it "by default is presigned" do
+        expect(builder.url(object_key)).to eq(builder.presigned_url(object_key))
+      end
+    end
+
+    it "ignores inapplicable args when public" do
+      expect(builder.url(object_key, public: true, response_content_type: "image/jpeg")).to eq(builder.public_url(object_key))
+    end
+  end
 end
