@@ -114,18 +114,20 @@ module FasterS3Url
 
       canonical_headers = "host:" + host + "\n"
 
-      canonical_request = "GET\n" +
-        canonical_uri + "\n" +
-        canonical_query_string + "\n" +
-        canonical_headers + "\n" +
-        SIGNED_HEADERS + "\n" +
+      canonical_request = ["GET",
+        canonical_uri,
+        canonical_query_string,
+        canonical_headers,
+        SIGNED_HEADERS,
         'UNSIGNED-PAYLOAD'
+      ].join("\n")
 
-      string_to_sign =
-        ALGORITHM + "\n" +
-        amz_date + "\n" +
-        credential_scope + "\n" +
+      string_to_sign = [
+        ALGORITHM,
+        amz_date,
+        credential_scope,
         Digest::SHA256.hexdigest(canonical_request)
+      ].join("\n")
 
       signing_key = aws_get_signature_key(@secret_access_key, datestamp, region, SERVICE)
       signature = OpenSSL::HMAC.hexdigest("SHA256", signing_key, string_to_sign)
