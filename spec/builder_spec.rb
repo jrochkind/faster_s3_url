@@ -1,6 +1,8 @@
 require 'spec_helper'
 require 'aws-sdk-s3'
 
+# For the most part we actually spec that results match what aws-sdk-s3 itself would generate!
+#
 RSpec.describe FasterS3Url do
   let(:access_key_id) { "fakeExampleAccessKeyId"}
   let(:secret_access_key) { "fakeExampleSecretAccessKey" }
