@@ -36,6 +36,8 @@ module FasterS3Url
       @default_public = default_public
       @access_key_id = access_key_id
       @secret_access_key = secret_access_key
+
+      @canonical_headers = "host:#{@host}\n"
     end
 
     def public_url(key)
@@ -115,12 +117,12 @@ module FasterS3Url
 
       canonical_query_string = canonical_query_string_parts.join("&")
 
-      canonical_headers = "host:#{@host}\n"
+
 
       canonical_request = ["GET",
         canonical_uri,
         canonical_query_string,
-        canonical_headers,
+        @canonical_headers,
         SIGNED_HEADERS,
         'UNSIGNED-PAYLOAD'
       ].join("\n")
