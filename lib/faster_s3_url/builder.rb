@@ -160,29 +160,30 @@ module FasterS3Url
 
     private
 
-    TO_ESCAPE_LEAVE_SLASH = /([^a-zA-Z0-9_.\-\~\/]+)/
-    TO_ESCAPE_ALSO_SLASH  = /([^a-zA-Z0-9_.\-\~]+)/
 
-    # Based on CGI.escape source, but changed to match what original S3 public_url
-    # code actually needs, but does with inefficient extra gsubs:
-    #  * IF escape_slash:true, don't escape '/', leave it alone (used for escaping S3 keys)
-    #  * don't escape '~', leave it alone
-    #  * escape ' ' to '%2F', not '+;'
-    #
-    # Code in aws-sdk does this by using CGI.escape and adding 2-3 additional gsub passes
-    # on top, much more efficient to do what we need in one go.
-    def uri_escape(string, escape_slash: true)
-      regexp = escape_slash ? TO_ESCAPE_ALSO_SLASH : TO_ESCAPE_LEAVE_SLASH
-
-      encoding = string.encoding
-
-      string.b.gsub(regexp) do |m|
-        '%' + m.unpack('H2' * m.bytesize).join('%').upcase
-      end.force_encoding(encoding)
+    # Becaues CGI.escape in MRI is written in C, this really does seem
+    # to be the fastest way to get the semantics we want, starting with
+    # CGI.escape and doing extra gsubs. Alternative would be using something
+    # else in pure C that has the semantics we want, but does not seem available.
+    def uri_escape(string)
+      if string.nil?
+        nil
+      else
+        CGI.escape(string.encode('UTF-8')).gsub('+', '%20').gsub('%7E', '~')
+      end
     end
 
-    def uri_escape_key(s3_object_key)
-      uri_escape(s3_object_key, escape_slash: false)
+    # like uri_escape but does NOT escape `/`, leaves it alone. The appropriate
+    # escaping algorithm for an S3 key turning into a URL.
+    #
+    # Faster to un-DRY the code with uri_escape. Yes, faster to actually just gsub
+    # %2F back to /
+    def uri_escape_key(string)
+      if string.nil?
+        nil
+      else
+        CGI.escape(string.encode('UTF-8')).gsub('+', '%20').gsub('%7E', '~').gsub("%2F", "/")
+      end
     end
 
     def default_host(bucket_name)
