@@ -103,7 +103,7 @@ module FasterS3Url
         :"response-content-encoding" => response_content_encoding,
         :"response-content-language" => response_content_language,
         :"response-content-type" => response_content_type,
-        :"response-expires" => response_expires,
+        :"response-expires" => convert_for_timestamp_shape(response_expires),
         :"versionId" => version_id
       }.compact
 
@@ -221,6 +221,32 @@ module FasterS3Url
       elsif expires_in <= 0
         raise ArgumentError.new("expires_in value of #{expires_in} cannot be 0 or less.")
       end
+    end
+
+    # Crazy kind of reverse engineered from aws-sdk-ruby,
+    # for compatible handling of Expires header.
+    #
+    # This honestly seems to violate the HTTP spec, the result will be that for
+    # an `response-expires` param, subsequent S3 response will include an Expires
+    # header in ISO8601 instead of HTTP-date format.... but for now we'll make
+    # our tests pass by behaving equivalently to aws-sdk-s3 anyway?
+    #
+    # Switch last line from `.utc.iso8601` to `.httpdate` if you want to be
+    # more correct than aws-sdk-s3?
+    def convert_for_timestamp_shape(arg)
+      return nil if arg.nil?
+
+      time_value = case arg
+        when Time
+          arg
+        when Date, DateTime
+          arg.to_time
+        when Integer, Float
+          Time.at(arg)
+        else
+          Time.parse(arg.to_s)
+      end
+      time_value.utc.iso8601
     end
   end
 end
