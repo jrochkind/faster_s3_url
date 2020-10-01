@@ -124,9 +124,67 @@ A couple minor differences, let me know if they disrupt you:
 
 Benchmarks were done using scripts checked into repo at `./perf` (which use benchmark-ips with mode `:stats => :bootstrap, :confidence => 95`), on my 2015 Macbook Pro, using ruby MRI 2.6.6. Benchmarking is never an exact science, hopefully this is reasonable.
 
+In my narrative, I normalize to how many iterations can happen in **10ms** to have numbers closer to what might be typical use cases.
+
 ### Public URLs
 
+`aws-sdk-s3` can create about 180 public URLs in 10ms, not horrible, but for how simple it seems the operation should be? FasterS3Url can do 2,200 public URLs in 10ms, that's a lot better.
+
+```
+$ bundle exec ruby perf/public_bench.rb
+Warming up --------------------------------------
+          aws-sdk-s3     1.265k i/100ms
+         FasterS3Url    24.414k i/100ms
+Calculating -------------------------------------
+          aws-sdk-s3     18.701k (± 3.2%) i/s -     92.345k in   5.048062s
+         FasterS3Url    222.938k (± 3.2%) i/s -      1.123M in   5.106971s
+                   with 95.0% confidence
+```
+
 ### Presigned URLs
+
+Here's where it really starts to matter.
+
+`aws-sdk-s3` can only generate about 10 presigned URLs in 10ms, painful. FasterS3URL, with a re-used Builder object, can generate about 220 presigned URLs in 10ms, much better, and actually faster than `aws-sdk-s3` can generate public urls!  Even if we re-instantiate a Builder each time, we can generate 180 presigned URLs in 10ms, don't lose too much performance that way.
+
+If we re-use the Builder *and* turn on the (not thread-safe) `cached_signing_keys` option, we can get up to 300 presigned URLs generated in 10ms.
+
+FasterS3URL supports supplying custom query params to instruct s3 HTTP response headers. This does slow things down since they need to be URI-escaped and constructed. Using this feature with `aws-sdk-s3`, it doesn't lose much speed, down to 9 instead of 10 URLs in 10ms. FasterS3URL goes down from 210 to 180 URLs generated in 10ms (without using `cached_signing_keys` option).
+
+We can compare to the ultra-fast [wt_s3_signer](https://github.com/WeTransfer/wt_s3_signer) gem, which, with a re-used signer object (that assumes the same `time` for all URLs, unlike us; and does not support per-url custom query params) can get all the way up to 680 URLs generated in 10ms, over twice as fast as we can do even with `cached_signing_keys`. If the restrictions and API of wt_s3_signer are amenable to your use case, it's definitely the fastest. But FasterS3URL is in the ballpark, and still more than an order of magnitude faster than `aws-sdk-s3`.
+
+```
+$ bundle exec ruby perf/presigned_bench.rb
+Warming up --------------------------------------
+          aws-sdk-s3   113.000  i/100ms
+aws-sdk-s3 with custom headers
+                        95.000  i/100ms
+ re-used FasterS3Url     1.820k i/100ms
+re-used FasterS3Url with cached signing keys
+                         2.920k i/100ms
+re-used FasterS3URL with custom headers
+                         1.494k i/100ms
+new FasterS3URL Builder each time
+                         1.977k i/100ms
+re-used WT::S3Signer     7.985k i/100ms
+new WT::S3Signer each time
+                         1.611k i/100ms
+Calculating -------------------------------------
+          aws-sdk-s3      1.084k (± 4.2%) i/s -      5.311k in   5.003981s
+aws-sdk-s3 with custom headers
+                        918.315  (± 4.8%) i/s -      4.560k in   5.118770s
+ re-used FasterS3Url     21.906k (± 4.0%) i/s -    107.380k in   5.046561s
+re-used FasterS3Url with cached signing keys
+                         29.756k (± 3.6%) i/s -    146.000k in   4.999910s
+re-used FasterS3URL with custom headers
+                         18.062k (± 4.3%) i/s -     85.158k in   5.025685s
+new FasterS3URL Builder each time
+                         18.312k (± 3.9%) i/s -     90.942k in   5.098636s
+re-used WT::S3Signer     68.275k (± 3.5%) i/s -    343.355k in   5.109088s
+new WT::S3Signer each time
+                         22.425k (± 2.8%) i/s -    111.159k in   5.036814s
+                   with 95.0% confidence
+```
 
 
 ## Development
