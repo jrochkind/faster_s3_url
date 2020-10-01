@@ -118,7 +118,7 @@ RSpec.describe FasterS3Url do
           expect(uri1.host).to eq(uri2.host)
           expect(uri1.path).to eq(uri2.path)
 
-          expect(CGI.parse(uri1.query)).to eq(CGI.parse(uri1.query))
+          expect(CGI.parse(uri1.query)).to eq(CGI.parse(uri2.query))
         end
 
         it "constructs equivalent custom response_cache_control" do
