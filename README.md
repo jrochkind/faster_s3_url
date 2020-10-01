@@ -19,8 +19,12 @@ signer = FasterS3Url::Builder.new(
 )
 
 signer.public_url("my/object/key.jpg")
-  #=> "https://my-bucket.aws"
+  #=> "https://my-bucket.s3.amazonaws.com/my/object/key.jpg"
+  # does handle URI-escaping keys properly
+
 signer.presigned_url("my/object/key.jpg")
+  # => https://my-bucket.s3.amazonaws.com/my/object/key.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=fakeExampleAccessKeyId%2F20201001%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20201001T183223Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&X-Amz-Signature=b5d2ec17cd7c9d4cc45f446f87b17522f18d3776f06d051bef73fb8329a2e605
+  # Also can handle additional query params such as response_content_disposition
 ```
 
 You can re-use a signer object for convenience or slighlty improved performance. It should be concurrency-safe to share globally between threads.
