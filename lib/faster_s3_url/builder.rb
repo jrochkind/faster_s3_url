@@ -16,6 +16,8 @@ module FasterS3Url
 
     DEFAULT_EXPIRES_IN = FIFTEEN_MINUTES # 15 minutes, seems to be AWS SDK default
 
+    MAX_CACHED_SIGNING_KEYS = 5
+
     attr_reader :bucket_name, :region, :host, :access_key_id
 
     # @option params [String] :bucket_name required
@@ -29,13 +31,23 @@ module FasterS3Url
     # @option params [String] :secret_access_key required at present, change to allow look up from environment using standard aws sdk routines?
     #
     # @option params [boolean] :default_public (true) default value of `public` when instance method #url is called.
-    def initialize(bucket_name:, region:, access_key_id:, secret_access_key:, host:nil, default_public: true)
+    #
+    # @option params [boolean] :cache_signing_keys (false). If set to true, up to five signing keys used for presigned URLs will
+    #   be cached and re-used, improving performance when generating mulitple presigned urls with a single Builder by around 50%.
+    #   NOTE WELL: This will make the Builder no longer technically concurrency-safe for sharing between multiple threads, is one
+    #   reason it is not on by default.
+    def initialize(bucket_name:, region:, access_key_id:, secret_access_key:, host:nil, default_public: true, cache_signing_keys: false)
       @bucket_name = bucket_name
       @region = region
       @host = host || default_host(bucket_name)
       @default_public = default_public
       @access_key_id = access_key_id
       @secret_access_key = secret_access_key
+      @cache_signing_keys = cache_signing_keys
+      if @cache_signing_keys
+        @signing_key_cache = {}
+      end
+
 
       @canonical_headers = "host:#{@host}\n"
     end
@@ -134,7 +146,7 @@ module FasterS3Url
         Digest::SHA256.hexdigest(canonical_request)
       ].join("\n")
 
-      signing_key = aws_get_signature_key(@secret_access_key, datestamp, region, SERVICE)
+      signing_key = retrieve_signing_key(datestamp)
       signature = OpenSSL::HMAC.hexdigest("SHA256", signing_key, string_to_sign)
 
       return "https://" + self.host + canonical_uri + "?" + canonical_query_string + "&X-Amz-Signature=" + signature
@@ -166,6 +178,31 @@ module FasterS3Url
 
 
     private
+
+    def make_signing_key(datestamp)
+      aws_get_signature_key(@secret_access_key, datestamp, @region, SERVICE)
+    end
+
+    # If caching of signing keys is turned on, use and cache signing key, while
+    # making sure not to cache more than MAX_CACHED_SIGNING_KEYS
+    #
+    # Otherwise if caching of signing keys is not turned on, just generate and return
+    # a signing key.
+    def retrieve_signing_key(datestamp)
+      if @cache_signing_keys
+        if value = @signing_key_cache[datestamp]
+          value
+        else
+          value = @signing_key_cache[datestamp] =  make_signing_key(datestamp)
+          while @signing_key_cache.size > MAX_CACHED_SIGNING_KEYS
+            @signing_key_cache.delete(@signing_key_cache.keys.first)
+          end
+          value
+        end
+      else
+        make_signing_key(datestamp)
+      end
+    end
 
 
     # Becaues CGI.escape in MRI is written in C, this really does seem
@@ -229,7 +266,8 @@ module FasterS3Url
     # This honestly seems to violate the HTTP spec, the result will be that for
     # an `response-expires` param, subsequent S3 response will include an Expires
     # header in ISO8601 instead of HTTP-date format.... but for now we'll make
-    # our tests pass by behaving equivalently to aws-sdk-s3 anyway?
+    # our tests pass by behaving equivalently to aws-sdk-s3 anyway? filed
+    # with aws-sdk-s3: https://github.com/aws/aws-sdk-ruby/issues/2415
     #
     # Switch last line from `.utc.iso8601` to `.httpdate` if you want to be
     # more correct than aws-sdk-s3?

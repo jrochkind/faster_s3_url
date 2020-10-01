@@ -6,7 +6,7 @@ Generate public and presigned AWS S3 `GET` URLs faster in ruby
 
 The official [ruby AWS SDK](https://github.com/aws/aws-sdk-ruby) is actually quite slow and unoptimized when generating URLs to access S3 objects. If you are only creating a couple S3 URLs at a time this may not matter. But it can matter on the order of even two or three hundred at a time, especially when creating presigned URLs, for which the AWS SDK is especially un-optimized.
 
-This gem provides a much faster implementation, by around an order of magnitude, for both public  and presigned S3 `GET` URLs.
+This gem provides a much faster implementation, by around an order of magnitude, for both public  and presigned S3 `GET` URLs. Additional S3 params such as `response-content-disposition` are supported for presigned URLs.
 
 ## Usage
 
@@ -15,7 +15,7 @@ signer = FasterS3Url::Builder.new(
   bucket_name: "my-bucket",
   region: "us-east-1",
   access_key_id: ENV['AWS_ACCESS_KEY'],
-  secret_key_id: ENV['AWS_SECRET_KEY']
+  secret_access_key: ENV['AWS_SECRET_KEY']
 )
 
 signer.public_url("my/object/key.jpg")
@@ -44,13 +44,48 @@ signer.presigned_url("my/object/key.jpg"
 Use a CNAME or CDN or any other hostname variant other than the default this gem will come up with? Just pass in a `host` argument to initializer. Will work with both public and presigned URLs.
 
 ```ruby
-signer = FasterS3Url::Builder.new(
+builder = FasterS3Url::Builder.new(
   bucket_name: "my-bucket.example.com",
   host: "my-bucket.example.com",
   region: "us-east-1",
   access_key_id: ENV['AWS_ACCESS_KEY'],
-  secret_key_id: ENV['AWS_SECRET_KEY']
+  secret_access_key: ENV['AWS_SECRET_KEY']
 )
+```
+
+### Cache signing keys for further performance
+
+Under most usage patterns, the presigend URLs you generate will all use a `time` with the same UTC date. In this case, a performance advantage can be had by asking the Builder to cache and re-use AWS signing keys, which only vary with calendar date of `time` arg, not time, or S3 key, or other args. It will actually cache the 5 most recently used signing keys.  This can result in around a 50% performance improvement with a re-used Builder used for generating presigned keys.
+
+**NOTE WELL: This will technically make the Builder object no longer concurrency-safe under multiple threads.** Although you might get away with it under MRI. This is one reason it is not on by default.
+
+```ruby
+builder = FasterS3Url::Builder.new(
+  bucket_name: "my-bucket.example.com",
+  region: "us-east-1",
+  access_key_id: ENV['AWS_ACCESS_KEY'],
+  secret_access_key: ENV['AWS_SECRET_KEY'],
+  cache_signing_keys: true
+)
+builder.presign_url(key) # performance enhanced
+```
+
+
+### Automatic AWS credentials lookup?
+
+Right now, you need to explicitly supply `access_key_id` and `secret_access_key`, in part to avoid a dependency on the AWS SDK (This gem doesn't have such a dependency!). Let us know if this makes you feel a certain kind of way.
+
+If you want to look up key/secret/region using the standard SDK methods of checking various places, in order to supply them to the `FasterS3Url::Builder`, you can try this (is there a better way? Cause this is kind of a mess!)
+
+```ruby
+require 'aws-sdk-s3'
+client = Aws::S3::Client.new
+credentials = client.config.credentials
+credentails = credentials.credentials if credentials.respond_to?(:credentials)
+
+access_key_id     = credentials.access_key_id
+secret_access_key = credentials.secret_access_key
+region            = client.config.region
 ```
 
 ### Shrine Storage
@@ -87,13 +122,12 @@ A couple minor differences, let me know if they disrupt you:
 
 ## Performance Benchmarking
 
-## Further optimizations?
+Benchmarks were done using scripts checked into repo at `./perf` (which use benchmark-ips with mode `:stats => :bootstrap, :confidence => 95`), on my 2015 Macbook Pro, using ruby MRI 2.6.6. Benchmarking is never an exact science, hopefully this is reasonable.
 
-Further optimizations could be possible in presigned urls for the use cases supported by wt_s3_signer. We could let you turn off URI escaping if you know you don't need it? We could support a fixed current time argument in constructor, and then cache all the things that can be cached when that is fixed when that option is exersized, to be more like wt_s3_signer.
+### Public URLs
 
-If you *don't* use any additional headers, we could automatially detect that and cache what can be cached -- some things can be cached until the utc date changes, could automatically cache and watch for that.
+### Presigned URLs
 
-In my experimentation, it wasn't clear that there were any easy wins here, at least not without really un-DRYing the code. And this is already an order of magnitude faster than `aws-sdk-s3`, and good enough for many of my use cases. But could be considered again in future.
 
 ## Development
 
@@ -103,7 +137,7 @@ To install local unreleased source of this gem onto your local machine for devel
 
 ## Sources/Acknowledgements
 
-[wt_s3_signer](https://github.com/WeTransfer/wt_s3_signer) served as a proof of concept, but was optimized for their particular use case, assuming batch processing where all signed S3 URLs share the same now time. I needed to support cases that didn't assume this, and also support custom headers like `response_content_disposition`. This code is also released with a different license. But if the API and use cases of `wt_s3_signer` meet your needs, it is even faster than this code.
+[wt_s3_signer](https://github.com/WeTransfer/wt_s3_signer) served as a proof of concept, but was optimized for their particular use case, assuming batch processing where all signed S3 URLs share the same "now" time. I needed to support cases that didn't assume this, and also support custom headers like `response_content_disposition`. This code is also released with a different license. But if the API and use cases of `wt_s3_signer` meet your needs, it is even faster than this code.
 
 I tried to figure out how to do the S3 presigned request from some AWS docs:
 

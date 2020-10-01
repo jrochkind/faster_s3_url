@@ -196,6 +196,40 @@ RSpec.describe FasterS3Url do
         expect(builder.presigned_url(object_key, time: custom_now)).to eq(aws_bucket.object(object_key).presigned_url(:get, time: custom_now))
       end
     end
+
+    describe "with cache_signing_keys" do
+      let(:one_day_in_seconds) { 86400 }
+
+      let(:builder) {
+        FasterS3Url::Builder.new(bucket_name: bucket_name,
+                                  region: region,
+                                  host: host,
+                                  access_key_id: access_key_id,
+                                  secret_access_key: secret_access_key,
+                                  cache_signing_keys: true)
+      }
+
+      it "still generates correct urls with multiple dates in times" do
+        now = Time.now.utc
+        now_minus_one = now - one_day_in_seconds
+        now_minus_two = now_minus_one - one_day_in_seconds
+
+        expect(builder.presigned_url(object_key, time: now)).to eq(aws_bucket.object(object_key).presigned_url(:get, time: now))
+        expect(builder.presigned_url(object_key, time: now_minus_one)).to eq(aws_bucket.object(object_key).presigned_url(:get, time: now_minus_one))
+        expect(builder.presigned_url(object_key, time: now_minus_two)).to eq(aws_bucket.object(object_key).presigned_url(:get, time: now_minus_two))
+      end
+
+      it "only caches MAX_CACHED_SIGNING_KEYS" do
+        now = Time.now.utc
+        time_args = [now]
+        10.times { time_args << (time_args.last - one_day_in_seconds) }
+
+        time_args.each do |time_arg|
+          builder.presigned_url(object_key, time: time_arg)
+        end
+        expect(builder.instance_variable_get("@signing_key_cache").size).to eq(builder.class::MAX_CACHED_SIGNING_KEYS)
+      end
+    end
   end
 
   describe "#url" do

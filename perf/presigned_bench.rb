@@ -19,6 +19,8 @@ aws_bucket = Aws::S3::Bucket.new(name: bucket_name, client: aws_client)
 
 faster_s3_builder = FasterS3Url::Builder.new(region: region, access_key_id: access_key_id, secret_access_key: secret_access_key, bucket_name: bucket_name)
 
+faster_s3_builder_with_caching = FasterS3Url::Builder.new(region: region, access_key_id: access_key_id, secret_access_key: secret_access_key, bucket_name: bucket_name, cache_signing_keys: true)
+
 wt_signer = WT::S3Signer.new(
                     expires_in: 15 * 60,
                     aws_region: "us-east-1",
@@ -50,6 +52,10 @@ Benchmark.ips do |x|
     faster_s3_builder.presigned_url(object_key)
   end
 
+  x.report("re-used FasterS3Url with cached signing keys") do
+    faster_s3_builder_with_caching.presigned_url(object_key)
+  end
+
   x.report("re-used FasterS3URL with custom headers") do
     faster_s3_builder.presigned_url(object_key, response_content_type: "image/jpeg", response_content_disposition: "attachment; filename=\"foo bar.baz\"; filename*=UTF-8''foo%20bar.baz")
   end
@@ -61,6 +67,19 @@ Benchmark.ips do |x|
 
   x.report("re-used WT::S3Signer") do
     wt_signer.presigned_get_url(object_key: object_key)
+  end
+
+  x.report("new WT::S3Signer each time") do
+    signer = WT::S3Signer.new(
+                    expires_in: 15 * 60,
+                    aws_region: "us-east-1",
+                    bucket_endpoint_url: "https://#{bucket_name}.s3.amazonaws.com",
+                    bucket_host: "#{bucket_name}.s3.amazonaws.com",
+                    bucket_name: bucket_name,
+                    access_key_id: access_key_id,
+                    secret_access_key: secret_access_key,
+                    session_token: nil)
+    signer.presigned_get_url(object_key: object_key)
   end
 
 end
