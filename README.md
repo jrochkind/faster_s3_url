@@ -122,7 +122,7 @@ A couple minor differences, let me know if they disrupt you:
 
 ## Performance Benchmarking
 
-Benchmarks were done using scripts checked into repo at `./perf` (which use benchmark-ips with mode `:stats => :bootstrap, :confidence => 95`), on my 2015 Macbook Pro, using ruby MRI 2.6.6. Benchmarking is never an exact science, hopefully this is reasonable.
+Benchmarks were done using scripts checked into repo at `./perf` (which use benchmark-ips with mode `:stats => :bootstrap, :confidence => 95`), on my 2015 Macbook Pro, using ruby MRI 2.6.6., on faster_s3_url version 0.1.0. Benchmarking is never an exact science, hopefully this is reasonable.
 
 In my narrative, I normalize to how many iterations can happen in **10ms** to have numbers closer to what might be typical use cases.
 
