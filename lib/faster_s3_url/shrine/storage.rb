@@ -23,6 +23,9 @@ module FasterS3Url
     #  * We support a `host` option on initializer, but do NOT support the `host` option on #url (I don't underestand
     #  why it's per-call in the first place, do you need it to be?)
     #
+    #  * You DO need to supply access_key_id and secret_access_key in initializer, they can not be automatically
+    #  looked up from AWS environmental chain. See README.
+    #
     class Storage < ::Shrine::Storage::S3
       # Same options as Shrine::Storage::S3, plus `host`
       def initialize(**options)
