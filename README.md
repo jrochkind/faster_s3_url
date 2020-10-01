@@ -34,7 +34,7 @@ If you are using S3 keys that need to be escaped in the URLs, this gem will escp
 When presigning URLs, you can pass the query parameters supported by S3 to control subsequent response headers. You can also supply a version_id for a URL to access a specific version.
 
 ```ruby
-signer.presigned_url("my/object/key.jpg"
+signer.presigned_url("my/object/key.jpg",
   response_cache_control: "public, max-age=604800, immutable",
   response_content_disposition: "attachment",
   response_content_language: "de-DE, en-CA",
