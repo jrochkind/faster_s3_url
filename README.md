@@ -21,7 +21,7 @@ signer = FasterS3Url::Builder.new(
 signer.public_url("my/object/key.jpg")
   #=> "https://my-bucket.s3.amazonaws.com/my/object/key.jpg"
   # does handle URI-escaping keys properly
-
+/
 signer.presigned_url("my/object/key.jpg")
   # => https://my-bucket.s3.amazonaws.com/my/object/key.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=fakeExampleAccessKeyId%2F20201001%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20201001T183223Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&X-Amz-Signature=b5d2ec17cd7c9d4cc45f446f87b17522f18d3776f06d051bef73fb8329a2e605
   # Also can handle additional query params such as response_content_disposition
@@ -85,7 +85,7 @@ If you want to look up key/secret/region using the standard SDK methods of check
 require 'aws-sdk-s3'
 client = Aws::S3::Client.new
 credentials = client.config.credentials
-credentails = credentials.credentials if credentials.respond_to?(:credentials)
+credentials = credentials.credentials if credentials.respond_to?(:credentials)
 
 access_key_id     = credentials.access_key_id
 secret_access_key = credentials.secret_access_key
