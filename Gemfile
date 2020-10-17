@@ -7,5 +7,6 @@ gem "rake", "~> 12.0"
 gem "rspec", "~> 3.0"
 
 gem 'pry-byebug', "~> 3.9"
-# need straight from github to get latest version without deprecations, eg https://github.com/softdevteam/libkalibera/issues/5
-gem 'kalibera', github: "softdevteam/libkalibera"
+# used by benchmark-ips in our perf/ profiling scripts.
+# https://github.com/evanphx/benchmark-ips#advanced-statistics
+gem 'kalibera'
