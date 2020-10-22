@@ -256,7 +256,7 @@ module FasterS3Url
 
     def validate_expires_in(expires_in)
       if expires_in > ONE_WEEK
-        raise ArgumentError.new("expires_in value of #{expires_in} exceeds one-week maximum.")
+        raise ArgumentError.new("expires_in value of #{expires_in} exceeds one-week (#{ONE_WEEK}) maximum.")
       elsif expires_in <= 0
         raise ArgumentError.new("expires_in value of #{expires_in} cannot be 0 or less.")
       end
