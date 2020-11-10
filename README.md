@@ -2,7 +2,8 @@
 
 Generate public and presigned AWS S3 `GET` URLs faster in ruby
 
-[![Gem Version](https://badge.fury.io/rb/faster_s3_url.svg)](https://badge.fury.io/rb/faster_s3_url) [![Build Status](https://travis-ci.com/jrochkind/faster_s3_url.svg?branch=master)](https://travis-ci.com/jrochkind/faster_s3_url)
+[![Gem Version](https://badge.fury.io/rb/faster_s3_url.svg)](https://badge.fury.io/rb/faster_s3_url) [![CI Status](https://github.com/jrochkind/faster_s3_url/workflows/CI/badge.svg?branch=master)](https://github.com/jrochkind/faster_s3_url/actions?query=workflow%3ACI+branch%3Amaster)
+
 
 The official [ruby AWS SDK](https://github.com/aws/aws-sdk-ruby) is actually quite slow and unoptimized when generating URLs to access S3 objects. If you are only creating a couple S3 URLs at a time this may not matter. But it can matter on the order of even two or three hundred at a time, especially when creating presigned URLs, for which the AWS SDK is especially un-optimized.
 
