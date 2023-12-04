@@ -61,7 +61,7 @@ module FasterS3Url
       end
 
       # For older shrine versions without it, we need this...
-      unless self.method_defined?(:object_key)
+      unless self.method_defined?(:object_key) || self.private_method_defined?(:object_key)
         def object_key(id)
           [*prefix, id].join("/")
         end
