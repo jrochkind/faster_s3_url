@@ -27,6 +27,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_development_dependency "aws-sdk-s3", "~> 1.81"
+  spec.add_development_dependency "nokogiri" # aws gem now has implicit dependency on an XML processor such as
   spec.add_development_dependency "timecop", "< 2"
   spec.add_development_dependency "benchmark-ips", "~> 2.8"
   #spec.add_development_dependency "kalibera" # for benchmark-ips :bootstrap stats option
