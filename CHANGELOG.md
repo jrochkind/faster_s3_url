@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - response-expires header format match recent AWS ruby SDK by using #httpdate https://github.com/jrochkind/faster_s3_url/pull/5
 
+- Only define local Storage#object_key if Shrine isn't already providing https://github.com/jrochkind/faster_s3_url/pull/7
 
 ### Changed
 
