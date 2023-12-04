@@ -265,14 +265,13 @@ module FasterS3Url
     # Crazy kind of reverse engineered from aws-sdk-ruby,
     # for compatible handling of Expires header.
     #
-    # This honestly seems to violate the HTTP spec, the result will be that for
-    # an `response-expires` param, subsequent S3 response will include an Expires
-    # header in ISO8601 instead of HTTP-date format.... but for now we'll make
-    # our tests pass by behaving equivalently to aws-sdk-s3 anyway? filed
-    # with aws-sdk-s3: https://github.com/aws/aws-sdk-ruby/issues/2415
+    # Recent versions of ruby AWS SDK use "httpdate" format here, as a result of
+    # an issue we filed: https://github.com/aws/aws-sdk-ruby/issues/2415
     #
-    # Switch last line from `.utc.iso8601` to `.httpdate` if you want to be
-    # more correct than aws-sdk-s3?
+    # We match what recent AWS SDK does.
+    #
+    # Note while the AWS SDK source says "rfc 822", it's ruby #httpdate that matches
+    # rather than ruby #rfc822 (timezone should be `GMT` to match AWS SDK, not `-0000`)
     def convert_for_timestamp_shape(arg)
       return nil if arg.nil?
 
@@ -286,7 +285,7 @@ module FasterS3Url
         else
           Time.parse(arg.to_s)
       end
-      time_value.utc.iso8601
+      time_value.utc.httpdate
     end
   end
 end
