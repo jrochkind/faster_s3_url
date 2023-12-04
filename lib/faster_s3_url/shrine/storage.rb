@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 gem "shrine", "~> 3.0"
 require 'shrine/storage/s3'
 

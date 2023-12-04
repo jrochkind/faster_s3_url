@@ -10,3 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - response-expires header format match recent AWS ruby SDK by using #httpdate https://github.com/jrochkind/faster_s3_url/pull/5
+
+
+### Changed
+
+- Some decrease in memory allocations made by gem https://github.com/jrochkind/faster_s3_url/pull/6
