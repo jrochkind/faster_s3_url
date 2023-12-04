@@ -206,7 +206,6 @@ module FasterS3Url
       end
     end
 
-
     # Becaues CGI.escape in MRI is written in C, this really does seem
     # to be the fastest way to get the semantics we want, starting with
     # CGI.escape and doing extra gsubs. Alternative would be using something
@@ -215,7 +214,12 @@ module FasterS3Url
       if string.nil?
         nil
       else
-        CGI.escape(string.encode('UTF-8')).gsub('+', '%20').gsub('%7E', '~')
+        CGI.escape(string.encode('UTF-8')).tap do |s|
+          # there is a clever way to do this in one gsub, but doesn't necessarily help
+          # memory allocations or performance
+          s.gsub!('+'.freeze, '%20'.freeze)
+          s.gsub!('%7E'.freeze, '~'.freeze)
+        end
       end
     end
 
@@ -228,7 +232,13 @@ module FasterS3Url
       if string.nil?
         nil
       else
-        CGI.escape(string.encode('UTF-8')).gsub('+', '%20').gsub('%7E', '~').gsub("%2F", "/")
+        CGI.escape(string.encode('UTF-8')).tap do |s|
+          # there is a clever way to do this in one gsub, but doesn't necessarily help
+          # memory allocations or performance
+          s.gsub!('+'.freeze, '%20'.freeze)
+          s.gsub!('%7E'.freeze, '~'.freeze)
+          s.gsub!('%2F'.freeze, '/'.freeze)
+        end
       end
     end
 
