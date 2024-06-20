@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## 1.2.0
 
 - Now requires at least ruby 3.2
-- uses CGI.escapeURIComponent for somewhat improved performance
+- uses CGI.escapeURIComponent for somewhat improved performance https://github.com/jrochkind/faster_s3_url/pull/8
 
 ## 1.1.0
 
