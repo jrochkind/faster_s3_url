@@ -7,7 +7,7 @@ module FasterS3Url
   # as well as some interactive code reading of Aws::Sigv4::Signer
   # https://github.com/aws/aws-sdk-ruby/blob/6114bc9692039ac75c8292c66472dacd14fa6f9a/gems/aws-sigv4/lib/aws-sigv4/signer.rb
   # as used by Aws::S3::Presigner https://github.com/aws/aws-sdk-ruby/blob/6114bc9692039ac75c8292c66472dacd14fa6f9a/gems/aws-sdk-s3/lib/aws-sdk-s3/presigner.rb
-  class Builder
+  class BuilderWithNewEscape
     FIFTEEN_MINUTES = 60 * 15
     ONE_WEEK = 60 * 60 * 24 * 7
 
@@ -206,9 +206,10 @@ module FasterS3Url
       end
     end
 
-
-    # CGI.escapeURIComponent has correct semantics for what AWS wants, and is
-    # implemented in C, so pretty fast.
+    # Becaues CGI.escape in MRI is written in C, this really does seem
+    # to be the fastest way to get the semantics we want, starting with
+    # CGI.escape and doing extra gsubs. Alternative would be using something
+    # else in pure C that has the semantics we want, but does not seem available.
     def uri_escape(string)
       if string.nil?
         nil
@@ -220,13 +221,17 @@ module FasterS3Url
     # like uri_escape but does NOT escape `/`, leaves it alone. The appropriate
     # escaping algorithm for an S3 key turning into a URL.
     #
-    # Using CGI.escapeURIComponent with a gsub is faster than anything else
-    # we found to get this semantics.
+    # Faster to un-DRY the code with uri_escape. Yes, faster to actually just gsub
+    # %2F back to /
     def uri_escape_key(string)
       if string.nil?
         nil
       else
         CGI.escapeURIComponent(string.encode('UTF-8')).tap do |s|
+          # there is a clever way to do this in one gsub, but doesn't necessarily help
+          # memory allocations or performance
+          #s.gsub!('+'.freeze, '%20'.freeze)
+          #s.gsub!('%7E'.freeze, '~'.freeze)
           s.gsub!('%2F'.freeze, '/'.freeze)
         end
       end
