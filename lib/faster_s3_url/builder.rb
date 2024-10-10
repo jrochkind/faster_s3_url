@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'cgi'
+require 'uri'
+require 'ipaddr'
 
 module FasterS3Url
   # Signing algorithm based on Amazon docs at https://docs.aws.amazon.com/general/latest/gr/sigv4-signed-request-examples.html ,
@@ -20,13 +22,18 @@ module FasterS3Url
 
     MAX_CACHED_SIGNING_KEYS = 5
 
-    attr_reader :bucket_name, :region, :host, :access_key_id
+    attr_reader :bucket_name, :region, :host, :endpoint, :access_key_id
 
     # @option params [String] :bucket_name required
     #
     # @option params [String] :region eg "us-east-1", required
     #
-    # @option params[String] :host optional, host to use in generated URLs. If empty, will construct default AWS S3 host for bucket name and region.
+    # @option params [String] :endpoint, Normally you should not configure the :endpoint option directly. This is normally constructed from the :region option. Configuring :endpoint is normally reserved for connecting to test or custom endpoints. The endpoint should be a URI formatted like:
+    # 'http://example.com'
+    # 'https://example.com'
+    # 'http://example.com:123'
+    #
+    # @option params [String] :host optional, host to use in generated URLs. If empty, will construct default AWS S3 host for bucket name and region.
     #
     # @option params [String] :access_key_id required at present, change to allow look up from environment using standard aws sdk routines?
     #
@@ -38,10 +45,11 @@ module FasterS3Url
     #   be cached and re-used, improving performance when generating mulitple presigned urls with a single Builder by around 50%.
     #   NOTE WELL: This will make the Builder no longer technically concurrency-safe for sharing between multiple threads, is one
     #   reason it is not on by default.
-    def initialize(bucket_name:, region:, access_key_id:, secret_access_key:, host:nil, default_public: true, cache_signing_keys: false)
+    def initialize(bucket_name:, region:, access_key_id:, secret_access_key:, host: nil, endpoint: nil, default_public: true, cache_signing_keys: false)
       @bucket_name = bucket_name
       @region = region
-      @host = host || default_host(bucket_name)
+      @endpoint = parse_endpoint(endpoint)
+      @host = @host || host || default_host(bucket_name)
       @default_public = default_public
       @access_key_id = access_key_id
       @secret_access_key = secret_access_key
@@ -50,12 +58,11 @@ module FasterS3Url
         @signing_key_cache = {}
       end
 
-
-      @canonical_headers = "host:#{@host}\n"
+      @canonical_headers = "host:#{host_with_port}\n"
     end
 
     def public_url(key)
-      "https://#{self.host}/#{uri_escape_key(key)}"
+      "#{scheme}://#{host_with_port}/#{path(key)}"
     end
 
     # Generates a presigned GET URL for a specified S3 object key.
@@ -95,7 +102,7 @@ module FasterS3Url
                         version_id: nil)
       validate_expires_in(expires_in)
 
-      canonical_uri = "/" + uri_escape_key(key)
+      canonical_uri = "/" + path(key)
 
       now = time ? time.dup.utc : Time.now.utc # Uh Time#utc is mutating, not nice to do to an argument!
       amz_date  = now.strftime("%Y%m%dT%H%M%SZ")
@@ -131,8 +138,6 @@ module FasterS3Url
 
       canonical_query_string = canonical_query_string_parts.join("&")
 
-
-
       canonical_request = ["GET",
         canonical_uri,
         canonical_query_string,
@@ -151,7 +156,7 @@ module FasterS3Url
       signing_key = retrieve_signing_key(datestamp)
       signature = OpenSSL::HMAC.hexdigest("SHA256", signing_key, string_to_sign)
 
-      return "https://" + self.host + canonical_uri + "?" + canonical_query_string + "&X-Amz-Signature=" + signature
+      return scheme + "://" + host_with_port + canonical_uri + "?" + canonical_query_string + "&X-Amz-Signature=" + signature
     end
 
     # just a convenience method that can call public_url or presigned_url based on flag
@@ -177,7 +182,6 @@ module FasterS3Url
         presigned_url(key, **options)
       end
     end
-
 
     private
 
@@ -242,6 +246,28 @@ module FasterS3Url
       end
     end
 
+    def scheme
+      @scheme || 'https'
+    end
+
+    def host_with_port
+      [
+        host,
+        @port
+      ].compact.join(":")
+    end
+
+    def parse_endpoint(endpoint)
+      return unless endpoint
+
+      uri = URI.parse(endpoint)
+      @scheme = uri.scheme
+      @port = uri.port if uri.port && uri.default_port != uri.port
+      host = uri.host
+      host = "#{bucket_name}.#{host}" unless is_ip(host)
+      @host = host
+    end
+
     def default_host(bucket_name)
       if region == "us-east-1"
         # use legacy one without region, as S3 seems to
@@ -249,6 +275,21 @@ module FasterS3Url
       else
         "#{bucket_name}.s3.#{region}.amazonaws.com".freeze
       end
+    end
+
+    def path(key)
+      if is_ip(host)
+        "#{bucket_name}/#{uri_escape_key(key)}"
+      else
+        uri_escape_key(key)
+      end
+    end
+
+    def is_ip(authority)
+      IPAddr.new(authority)
+      true
+    rescue IPAddr::InvalidAddressError
+      false
     end
 
     # `def get_signature_key` `from python example at https://docs.aws.amazon.com/general/latest/gr/sigv4-signed-request-examples.html
