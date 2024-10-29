@@ -75,6 +75,20 @@ builder = FasterS3Url::Builder.new(
 builder.presign_url(key) # performance enhanced
 ```
 
+### Using AWS Security Token Service (AWS STS)?
+
+When using AWS Security Token Service (AWS STS), AWS requires that the X-Amz-Security-Token parameter is set on presigned URLs. To accomplish this, you will need to pass the optional `session_token` parameter into the `FasterS3Url::Builder`.
+
+```ruby
+builder = FasterS3Url::Builder.new(
+  bucket_name: "my-bucket.example.com",
+  region: "us-east-1",
+  access_key_id: ENV['AWS_ACCESS_KEY'],
+  secret_access_key: ENV['AWS_SECRET_KEY'],
+  session_token: "session_token"
+)
+builder.presign_url(key) # includes required X-Amz-Security-Token
+```
 
 ### Automatic AWS credentials lookup?
 
@@ -90,6 +104,7 @@ credentials = credentials.credentials if credentials.respond_to?(:credentials)
 
 access_key_id     = credentials.access_key_id
 secret_access_key = credentials.secret_access_key
+session_token     = credentials.session_token # only needed when using AWS Security Token Service
 region            = client.config.region
 ```
 

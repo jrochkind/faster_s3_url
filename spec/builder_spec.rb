@@ -6,13 +6,14 @@ require 'aws-sdk-s3'
 RSpec.describe FasterS3Url do
   let(:access_key_id) { "fakeExampleAccessKeyId"}
   let(:secret_access_key) { "fakeExampleSecretAccessKey" }
+  let(:session_token) { nil }
 
   let(:bucket_name) { "my-bucket" }
   let(:object_key) { "some/directory/file.jpg" }
   let(:region) { "us-east-1"}
   let(:host) { nil }
 
-  let(:aws_client) { Aws::S3::Client.new(region: region, access_key_id: access_key_id, secret_access_key: secret_access_key) }
+  let(:aws_client) { Aws::S3::Client.new(region: region, access_key_id: access_key_id, secret_access_key: secret_access_key, session_token: session_token) }
   let(:aws_bucket) { Aws::S3::Bucket.new(name: bucket_name, client: aws_client)}
 
   let(:builder) {
@@ -20,7 +21,8 @@ RSpec.describe FasterS3Url do
                               region: region,
                               host: host,
                               access_key_id: access_key_id,
-                              secret_access_key: secret_access_key)
+                              secret_access_key: secret_access_key,
+                              session_token: session_token)
   }
 
   describe "#public_url" do
@@ -85,9 +87,17 @@ RSpec.describe FasterS3Url do
         expect(builder.presigned_url(object_key)).to eq(aws_bucket.object(object_key).presigned_url(:get))
       end
 
+      describe "custom session_token" do
+        let(:session_token) { 'custom_session_token' }
+
+        it "produces same as aws-sdk" do
+          expect(builder.presigned_url(object_key)).to eq(aws_bucket.object(object_key).presigned_url(:get))
+        end
+      end
+
       describe "custom expires_in" do
         let(:expires_in) { 4 * 24 * 60 * 60}
-        it "produces saem as aws-sdk" do
+        it "produces same as aws-sdk" do
           expect(builder.presigned_url(object_key, expires_in: expires_in)).to eq(aws_bucket.object(object_key).presigned_url(:get, expires_in: expires_in))
         end
 
