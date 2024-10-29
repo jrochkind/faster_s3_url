@@ -20,7 +20,7 @@ module FasterS3Url
 
     MAX_CACHED_SIGNING_KEYS = 5
 
-    attr_reader :bucket_name, :region, :host, :access_key_id
+    attr_reader :bucket_name, :region, :host, :access_key_id, :session_token
 
     # @option params [String] :bucket_name required
     #
@@ -38,7 +38,7 @@ module FasterS3Url
     #   be cached and re-used, improving performance when generating mulitple presigned urls with a single Builder by around 50%.
     #   NOTE WELL: This will make the Builder no longer technically concurrency-safe for sharing between multiple threads, is one
     #   reason it is not on by default.
-    def initialize(bucket_name:, region:, access_key_id:, secret_access_key:, host:nil, default_public: true, cache_signing_keys: false)
+    def initialize(bucket_name:, region:, access_key_id:, secret_access_key:, session_token: nil, host:nil, default_public: true, cache_signing_keys: false)
       @bucket_name = bucket_name
       @region = region
       @host = host || default_host(bucket_name)
@@ -46,6 +46,7 @@ module FasterS3Url
       @access_key_id = access_key_id
       @secret_access_key = secret_access_key
       @cache_signing_keys = cache_signing_keys
+      @session_token = session_token
       if @cache_signing_keys
         @signing_key_cache = {}
       end
@@ -103,34 +104,24 @@ module FasterS3Url
 
       credential_scope = datestamp + '/' + region + '/' + SERVICE + '/' + 'aws4_request'
 
-      canonical_query_string_parts = [
-          "X-Amz-Algorithm=#{ALGORITHM}",
-          "X-Amz-Credential=" + uri_escape(@access_key_id + "/" + credential_scope),
-          "X-Amz-Date=" + amz_date,
-          "X-Amz-Expires=" + expires_in.to_s,
-          "X-Amz-SignedHeaders=" + SIGNED_HEADERS,
-        ]
-
-      extra_params = {
-        :"response-cache-control" => response_cache_control,
-        :"response-content-disposition" => response_content_disposition,
-        :"response-content-encoding" => response_content_encoding,
-        :"response-content-language" => response_content_language,
-        :"response-content-type" => response_content_type,
-        :"response-expires" => convert_for_timestamp_shape(response_expires),
-        :"versionId" => version_id
+      # These have to be sorted, but sort is case-sensitive, and we have a fixed
+      # list of headers we know might be here... turns out they are already sorted?
+      canonical_query_params = {
+        "X-Amz-Algorithm": ALGORITHM,
+        "X-Amz-Credential": uri_escape(@access_key_id + "/" + credential_scope),
+        "X-Amz-Date": amz_date,
+        "X-Amz-Expires": expires_in.to_s,
+        "X-Amz-Security-Token": uri_escape(session_token),
+        "X-Amz-SignedHeaders": SIGNED_HEADERS,
+        "response-cache-control": uri_escape(response_cache_control),
+        "response-content-disposition": uri_escape(response_content_disposition),
+        "response-content-encoding": uri_escape(response_content_encoding),
+        "response-content-language": uri_escape(response_content_language),
+        "response-content-type": uri_escape(response_content_type),
+        "response-expires": uri_escape(convert_for_timestamp_shape(response_expires)),
+        "versionId": uri_escape(version_id)
       }.compact
-
-
-      if extra_params.size > 0
-        # These have to be sorted, but sort is case-sensitive, and we have a fixed
-        # list of headers we know might be here... turns out they are already sorted?
-        extra_param_parts = extra_params.collect {|k, v| "#{k}=#{uri_escape v}" }.join("&")
-        canonical_query_string_parts << extra_param_parts
-      end
-
-      canonical_query_string = canonical_query_string_parts.join("&")
-
+      canonical_query_string = canonical_query_params.collect {|k, v| "#{k}=#{v}" }.join("&")
 
 
       canonical_request = ["GET",

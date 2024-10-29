@@ -7,8 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 1.2.0
 
-- Now requires at least ruby 3.2
+### Changed
+
+- Now requires at least ruby 3.1
 - uses CGI.escapeURIComponent for somewhat improved performance https://github.com/jrochkind/faster_s3_url/pull/8
+
+### Added
+
+- Add `session_token` option to `Builder` from [@BenKanouse](https://github.com/BenKanouse) https://github.com/jrochkind/faster_s3_url/pull/12
 
 ## 1.1.0
 
