@@ -7,7 +7,7 @@ module FasterS3Url
   # as well as some interactive code reading of Aws::Sigv4::Signer
   # https://github.com/aws/aws-sdk-ruby/blob/6114bc9692039ac75c8292c66472dacd14fa6f9a/gems/aws-sigv4/lib/aws-sigv4/signer.rb
   # as used by Aws::S3::Presigner https://github.com/aws/aws-sdk-ruby/blob/6114bc9692039ac75c8292c66472dacd14fa6f9a/gems/aws-sdk-s3/lib/aws-sdk-s3/presigner.rb
-  class Builder
+  class BuilderWithNewEscape
     FIFTEEN_MINUTES = 60 * 15
     ONE_WEEK = 60 * 60 * 24 * 7
 
@@ -20,7 +20,7 @@ module FasterS3Url
 
     MAX_CACHED_SIGNING_KEYS = 5
 
-    attr_reader :bucket_name, :region, :host, :access_key_id, :session_token
+    attr_reader :bucket_name, :region, :host, :access_key_id
 
     # @option params [String] :bucket_name required
     #
@@ -38,7 +38,7 @@ module FasterS3Url
     #   be cached and re-used, improving performance when generating mulitple presigned urls with a single Builder by around 50%.
     #   NOTE WELL: This will make the Builder no longer technically concurrency-safe for sharing between multiple threads, is one
     #   reason it is not on by default.
-    def initialize(bucket_name:, region:, access_key_id:, secret_access_key:, session_token: nil, host:nil, default_public: true, cache_signing_keys: false)
+    def initialize(bucket_name:, region:, access_key_id:, secret_access_key:, host:nil, default_public: true, cache_signing_keys: false)
       @bucket_name = bucket_name
       @region = region
       @host = host || default_host(bucket_name)
@@ -46,7 +46,6 @@ module FasterS3Url
       @access_key_id = access_key_id
       @secret_access_key = secret_access_key
       @cache_signing_keys = cache_signing_keys
-      @session_token = session_token
       if @cache_signing_keys
         @signing_key_cache = {}
       end
@@ -104,24 +103,34 @@ module FasterS3Url
 
       credential_scope = datestamp + '/' + region + '/' + SERVICE + '/' + 'aws4_request'
 
-      # These have to be sorted, but sort is case-sensitive, and we have a fixed
-      # list of headers we know might be here... turns out they are already sorted?
-      canonical_query_params = {
-        "X-Amz-Algorithm": ALGORITHM,
-        "X-Amz-Credential": uri_escape(@access_key_id + "/" + credential_scope),
-        "X-Amz-Date": amz_date,
-        "X-Amz-Expires": expires_in.to_s,
-        "X-Amz-Security-Token": uri_escape(session_token),
-        "X-Amz-SignedHeaders": SIGNED_HEADERS,
-        "response-cache-control": uri_escape(response_cache_control),
-        "response-content-disposition": uri_escape(response_content_disposition),
-        "response-content-encoding": uri_escape(response_content_encoding),
-        "response-content-language": uri_escape(response_content_language),
-        "response-content-type": uri_escape(response_content_type),
-        "response-expires": uri_escape(convert_for_timestamp_shape(response_expires)),
-        "versionId": uri_escape(version_id)
+      canonical_query_string_parts = [
+          "X-Amz-Algorithm=#{ALGORITHM}",
+          "X-Amz-Credential=" + uri_escape(@access_key_id + "/" + credential_scope),
+          "X-Amz-Date=" + amz_date,
+          "X-Amz-Expires=" + expires_in.to_s,
+          "X-Amz-SignedHeaders=" + SIGNED_HEADERS,
+        ]
+
+      extra_params = {
+        :"response-cache-control" => response_cache_control,
+        :"response-content-disposition" => response_content_disposition,
+        :"response-content-encoding" => response_content_encoding,
+        :"response-content-language" => response_content_language,
+        :"response-content-type" => response_content_type,
+        :"response-expires" => convert_for_timestamp_shape(response_expires),
+        :"versionId" => version_id
       }.compact
-      canonical_query_string = canonical_query_params.collect {|k, v| "#{k}=#{v}" }.join("&")
+
+
+      if extra_params.size > 0
+        # These have to be sorted, but sort is case-sensitive, and we have a fixed
+        # list of headers we know might be here... turns out they are already sorted?
+        extra_param_parts = extra_params.collect {|k, v| "#{k}=#{uri_escape v}" }.join("&")
+        canonical_query_string_parts << extra_param_parts
+      end
+
+      canonical_query_string = canonical_query_string_parts.join("&")
+
 
 
       canonical_request = ["GET",
@@ -197,9 +206,10 @@ module FasterS3Url
       end
     end
 
-
-    # CGI.escapeURIComponent has correct semantics for what AWS wants, and is
-    # implemented in C, so pretty fast.
+    # Becaues CGI.escape in MRI is written in C, this really does seem
+    # to be the fastest way to get the semantics we want, starting with
+    # CGI.escape and doing extra gsubs. Alternative would be using something
+    # else in pure C that has the semantics we want, but does not seem available.
     def uri_escape(string)
       if string.nil?
         nil
@@ -211,13 +221,17 @@ module FasterS3Url
     # like uri_escape but does NOT escape `/`, leaves it alone. The appropriate
     # escaping algorithm for an S3 key turning into a URL.
     #
-    # Using CGI.escapeURIComponent with a gsub is faster than anything else
-    # we found to get this semantics.
+    # Faster to un-DRY the code with uri_escape. Yes, faster to actually just gsub
+    # %2F back to /
     def uri_escape_key(string)
       if string.nil?
         nil
       else
         CGI.escapeURIComponent(string.encode('UTF-8')).tap do |s|
+          # there is a clever way to do this in one gsub, but doesn't necessarily help
+          # memory allocations or performance
+          #s.gsub!('+'.freeze, '%20'.freeze)
+          #s.gsub!('%7E'.freeze, '~'.freeze)
           s.gsub!('%2F'.freeze, '/'.freeze)
         end
       end
