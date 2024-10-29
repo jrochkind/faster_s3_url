@@ -20,13 +20,15 @@ module FasterS3Url
 
     MAX_CACHED_SIGNING_KEYS = 5
 
-    attr_reader :bucket_name, :region, :host, :access_key_id, :session_token
+    attr_reader :bucket_name, :region, :host, :base_url, :base_path, :access_key_id, :session_token
 
     # @option params [String] :bucket_name required
     #
     # @option params [String] :region eg "us-east-1", required
     #
     # @option params[String] :host optional, host to use in generated URLs. If empty, will construct default AWS S3 host for bucket name and region.
+    #
+    # @option params[String] :endpoint optional. `endpoint` as in AWS SDK S3, to point at non-standard AWS locations. Mutually exclusive with `host`, can be used to point to alternate systems including local S3 clones like minio.
     #
     # @option params [String] :access_key_id required at present, change to allow look up from environment using standard aws sdk routines?
     #
@@ -38,10 +40,20 @@ module FasterS3Url
     #   be cached and re-used, improving performance when generating mulitple presigned urls with a single Builder by around 50%.
     #   NOTE WELL: This will make the Builder no longer technically concurrency-safe for sharing between multiple threads, is one
     #   reason it is not on by default.
-    def initialize(bucket_name:, region:, access_key_id:, secret_access_key:, session_token: nil, host:nil, default_public: true, cache_signing_keys: false)
+    def initialize(bucket_name:, region:, access_key_id:, secret_access_key:, session_token:nil, host:nil, endpoint: nil, default_public: true, cache_signing_keys: false)
+      if endpoint && host
+        raise ArgumentError.new("`endpoint` and `host` are mutually exclusive, you can only provide one. You provided endpoint: #{endpoint.inspect} and host: #{host.inspect}")
+      end
+
       @bucket_name = bucket_name
       @region = region
-      @host = host || default_host(bucket_name)
+
+      parsed_uri = parsed_base_uri(bucket_name: bucket_name, host: host, endpoint: endpoint)
+      @base_url = URI.join(parsed_uri, "/").to_s.chomp("/") # without path
+      @base_path = parsed_uri.path # path component of base url, usually empty
+      @host = parsed_uri.host
+      @canonical_headers = "host:#{parsed_uri.port == parsed_uri.default_port ? @host : "#{parsed_uri.host}:#{parsed_uri.port}"}\n"
+
       @default_public = default_public
       @access_key_id = access_key_id
       @secret_access_key = secret_access_key
@@ -50,13 +62,10 @@ module FasterS3Url
       if @cache_signing_keys
         @signing_key_cache = {}
       end
-
-
-      @canonical_headers = "host:#{@host}\n"
     end
 
     def public_url(key)
-      "https://#{self.host}/#{uri_escape_key(key)}"
+      "#{self.base_url}#{self.base_path}/#{uri_escape_key(key)}"
     end
 
     # Generates a presigned GET URL for a specified S3 object key.
@@ -96,7 +105,7 @@ module FasterS3Url
                         version_id: nil)
       validate_expires_in(expires_in)
 
-      canonical_uri = "/" + uri_escape_key(key)
+      canonical_uri = self.base_path + "/" + uri_escape_key(key)
 
       now = time ? time.dup.utc : Time.now.utc # Uh Time#utc is mutating, not nice to do to an argument!
       amz_date  = now.strftime("%Y%m%dT%H%M%SZ")
@@ -121,8 +130,8 @@ module FasterS3Url
         "response-expires": uri_escape(convert_for_timestamp_shape(response_expires)),
         "versionId": uri_escape(version_id)
       }.compact
-      canonical_query_string = canonical_query_params.collect {|k, v| "#{k}=#{v}" }.join("&")
 
+      canonical_query_string = canonical_query_params.collect {|k, v| "#{k}=#{v}" }.join("&")
 
       canonical_request = ["GET",
         canonical_uri,
@@ -142,7 +151,7 @@ module FasterS3Url
       signing_key = retrieve_signing_key(datestamp)
       signature = OpenSSL::HMAC.hexdigest("SHA256", signing_key, string_to_sign)
 
-      return "https://" + self.host + canonical_uri + "?" + canonical_query_string + "&X-Amz-Signature=" + signature
+      return "#{base_url}#{canonical_uri}?#{canonical_query_string}&X-Amz-Signature=#{signature}"
     end
 
     # just a convenience method that can call public_url or presigned_url based on flag
@@ -220,6 +229,28 @@ module FasterS3Url
         CGI.escapeURIComponent(string.encode('UTF-8')).tap do |s|
           s.gsub!('%2F'.freeze, '/'.freeze)
         end
+      end
+    end
+
+    # Handle endpoint, modifying host or path with bucketname, and setting
+    # host.
+    #
+    # if none set, set default host.
+    #
+    # Set base_url correct for host or endpoint.
+    def parsed_base_uri(bucket_name:, host:, endpoint:)
+      if host
+        return URI.parse("https://#{host}")
+      elsif endpoint
+        parsed = URI.parse(endpoint)
+        if parsed.host =~ /\A\d+\.\d+\.\d+\.\d+\Z/
+          parsed.path = "/#{bucket_name}"
+        else
+          parsed.host = "#{bucket_name}.#{parsed.host}"
+        end
+        return parsed
+      else
+        return URI.parse("https://#{default_host(bucket_name)}")
       end
     end
 
