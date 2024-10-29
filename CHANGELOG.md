@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `session_token` option to `Builder` from [@BenKanouse](https://github.com/BenKanouse) https://github.com/jrochkind/faster_s3_url/pull/12
 
+- Add 'endpoint' option to Builder, thanks @BenKanouse, https://github.com/jrochkind/faster_s3_url/pull/14
+
 ## 1.1.0
 
 ### Fixed
