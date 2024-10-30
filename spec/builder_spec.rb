@@ -3,7 +3,7 @@ require 'aws-sdk-s3'
 
 # For the most part we actually spec that results match what aws-sdk-s3 itself would generate!
 #
-RSpec.describe FasterS3Url do
+RSpec.describe FasterS3Url::Builder do
   let(:access_key_id) { "fakeExampleAccessKeyId"}
   let(:secret_access_key) { "fakeExampleSecretAccessKey" }
   let(:session_token) { nil }
@@ -13,7 +13,14 @@ RSpec.describe FasterS3Url do
   let(:region) { "us-east-1"}
   let(:host) { nil }
 
-  let(:aws_client) { Aws::S3::Client.new(region: region, access_key_id: access_key_id, secret_access_key: secret_access_key, session_token: session_token) }
+  let(:aws_client) do
+    Aws::S3::Client.new(
+      region: region,
+      access_key_id: access_key_id,
+      secret_access_key: secret_access_key,
+      session_token: session_token)
+  end
+
   let(:aws_bucket) { Aws::S3::Bucket.new(name: bucket_name, client: aws_client)}
 
   let(:builder) {
@@ -67,8 +74,74 @@ RSpec.describe FasterS3Url do
     describe "custom host" do
       let(:host) { "my.example.com" }
 
-      it "is correct" do
+      it "uses the custom host with https" do
         expect(builder.public_url(object_key)).to eq("https://#{host}/#{object_key}")
+      end
+    end
+
+    describe "custom endpoint" do
+      let(:endpoint) { nil }
+
+      let(:aws_client) do
+        Aws::S3::Client.new(
+          region: region,
+          access_key_id: access_key_id,
+          secret_access_key: secret_access_key,
+          endpoint: endpoint)
+      end
+
+       let(:builder) {
+          FasterS3Url::Builder.new(bucket_name: bucket_name,
+                                    region: region,
+                                    host: host,
+                                    access_key_id: access_key_id,
+                                    secret_access_key: secret_access_key,
+                                    endpoint: endpoint)
+        }
+
+      describe "with string host with https" do
+        let(:endpoint) { "https://my.example.com" }
+
+        it "prefixes the endpoint with the bucket name" do
+          expect(builder.public_url(object_key)).to eq("https://#{bucket_name}.my.example.com/#{object_key}")
+          expect(builder.public_url(object_key)).to eq(aws_bucket.object(object_key).public_url)
+        end
+      end
+
+      describe "with string host with http" do
+        let(:endpoint) { "http://my.example.com" }
+
+        it "prefixes the endpoint with the bucket name" do
+          expect(builder.public_url(object_key)).to eq("http://#{bucket_name}.my.example.com/#{object_key}")
+          expect(builder.public_url(object_key)).to eq(aws_bucket.object(object_key).public_url)
+        end
+      end
+
+      describe "with string host with port" do
+        let(:endpoint) { "https://my.example.com:3000" }
+
+        it "prefixes the endpoint with the bucket name and keeps the port" do
+          expect(builder.public_url(object_key)).to eq("https://#{bucket_name}.my.example.com:3000/#{object_key}")
+          expect(builder.public_url(object_key)).to eq(aws_bucket.object(object_key).public_url)
+        end
+      end
+
+      describe "with ip address host" do
+        let(:endpoint) { "http://127.0.0.1" }
+
+        it "adds the bucket name after the endpoint" do
+          expect(builder.public_url(object_key)).to eq("#{endpoint}/#{bucket_name}/#{object_key}")
+          expect(builder.public_url(object_key)).to eq(aws_bucket.object(object_key).public_url)
+        end
+      end
+
+      describe "with ip address host and port" do
+        let(:endpoint) { "http://127.0.0.1:3000" }
+
+        it "adds the bucket after the endpoint and keeps the port" do
+          expect(builder.public_url(object_key)).to eq("#{endpoint}/#{bucket_name}/#{object_key}")
+          expect(builder.public_url(object_key)).to eq(aws_bucket.object(object_key).public_url)
+        end
       end
     end
   end
@@ -111,6 +184,80 @@ RSpec.describe FasterS3Url do
           expect {
             builder.presigned_url(object_key, expires_in: 0)
           }.to raise_error(ArgumentError)
+        end
+      end
+
+      describe "custom host" do
+        let(:host) { "my.example.com" }
+
+        it "uses the custom host with https" do
+          expect(builder.presigned_url(object_key)).to start_with("https://#{host}")
+        end
+      end
+
+      describe "custom endpoint" do
+        let(:endpoint) { nil }
+
+        let(:aws_client) do
+          Aws::S3::Client.new(
+            region: region,
+            access_key_id: access_key_id,
+            secret_access_key: secret_access_key,
+            endpoint: endpoint)
+        end
+
+         let(:builder) {
+            FasterS3Url::Builder.new(bucket_name: bucket_name,
+                                      region: region,
+                                      host: host,
+                                      access_key_id: access_key_id,
+                                      secret_access_key: secret_access_key,
+                                      endpoint: endpoint)
+          }
+
+        describe "with string host with https" do
+          let(:endpoint) { "https://my.example.com" }
+
+          it "prefixes the endpoint with the bucket name" do
+            expect(builder.presigned_url(object_key)).to start_with("https://#{bucket_name}.my.example.com/#{object_key}")
+            expect(builder.presigned_url(object_key)).to eq(aws_bucket.object(object_key).presigned_url(:get))
+          end
+        end
+
+        describe "with string host with http" do
+          let(:endpoint) { "http://my.example.com" }
+
+          it "prefixes the endpoint with the bucket name" do
+            expect(builder.presigned_url(object_key)).to start_with("http://#{bucket_name}.my.example.com/#{object_key}")
+            expect(builder.presigned_url(object_key)).to eq(aws_bucket.object(object_key).presigned_url(:get))
+          end
+        end
+
+        describe "with string host with port" do
+          let(:endpoint) { "https://my.example.com:3000" }
+
+          it "prefixes the endpoint with the bucket name and keeps the port" do
+            expect(builder.presigned_url(object_key)).to start_with("https://#{bucket_name}.my.example.com:3000/#{object_key}")
+            expect(builder.presigned_url(object_key)).to eq(aws_bucket.object(object_key).presigned_url(:get))
+          end
+        end
+
+        describe "with ip address host" do
+          let(:endpoint) { "http://127.0.0.1" }
+
+          it "adds the bucket name after the endpoint" do
+            expect(builder.presigned_url(object_key)).to start_with("#{endpoint}/#{bucket_name}/#{object_key}")
+            expect(builder.presigned_url(object_key)).to eq(aws_bucket.object(object_key).presigned_url(:get))
+          end
+        end
+
+        describe "with ip address host and port" do
+          let(:endpoint) { "http://127.0.0.1:3000" }
+
+          it "uses the custom endpoint and includes the bucket" do
+            expect(builder.presigned_url(object_key)).to start_with("#{endpoint}/#{bucket_name}/#{object_key}")
+            expect(builder.presigned_url(object_key)).to eq(aws_bucket.object(object_key).presigned_url(:get))
+          end
         end
       end
 
