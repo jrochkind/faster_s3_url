@@ -240,19 +240,16 @@ module FasterS3Url
     #
     # Set base_url correct for host or endpoint.
     def parsed_base_uri(bucket_name:, host:, endpoint:)
-      if host
-        return URI.parse("https://#{host}")
-      elsif endpoint
-        parsed = URI.parse(endpoint)
-        if parsed.host =~ /\A\d+\.\d+\.\d+\.\d+\Z/
-          parsed.path = "/#{bucket_name}"
-        else
-          parsed.host = "#{bucket_name}.#{parsed.host}"
-        end
-        return parsed
+      return URI.parse("https://#{host}") if host
+      return URI.parse("https://#{default_host(bucket_name)}") if endpoint.nil?
+
+      parsed = URI.parse(endpoint)
+      if parsed.host =~ /\A\d+\.\d+\.\d+\.\d+\Z/
+        parsed.path = "/#{bucket_name}"
       else
-        return URI.parse("https://#{default_host(bucket_name)}")
+        parsed.host = "#{bucket_name}.#{parsed.host}"
       end
+      parsed
     end
 
     def default_host(bucket_name)
