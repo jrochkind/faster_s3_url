@@ -20,7 +20,8 @@ module FasterS3Url
 
     MAX_CACHED_SIGNING_KEYS = 5
 
-    attr_reader :bucket_name, :region, :host, :base_url, :base_path, :access_key_id, :session_token
+    attr_reader :bucket_name, :region, :host, :access_key_id, :session_token
+    private attr_reader :base_url, :base_path
 
     # @option params [String] :bucket_name required
     #
